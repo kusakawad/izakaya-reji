@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>居酒屋レジ</title>
+<meta name="theme-color" content="#46a0ae">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="居酒屋レジ">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --accent:#46a0ae; --accent-d:#2f7d89; --busy:#e8973a; --busy-bg:#fdf1e3;
+  --bg:#f6f6f6; --cell:#e8e8e8; --panel:#ffffff; --text:#1e1e1e; --muted:#7a7a7a;
+  --bar:#bdbdbd; --label:#6f6f6f; --line:#d6d6d6; --danger:#d9443a;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#161819; --cell:#272a2c; --panel:#1f2223; --text:#ececec; --muted:#9b9b9b;
+    --bar:#3a3d3f; --label:#4d5153; --line:#34383a; --busy-bg:#3a2c1c;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#161819; --cell:#272a2c; --panel:#1f2223; --text:#ececec; --muted:#9b9b9b;
+  --bar:#3a3d3f; --label:#4d5153; --line:#34383a; --busy-bg:#3a2c1c;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);
+  font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif;
+  -webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+#app{height:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;background:var(--bg)}
+
+.hd{flex:0 0 auto;background:var(--accent);color:#fff;height:56px;display:flex;align-items:center;gap:8px;padding:0 8px}
+.hd .title{flex:1;text-align:center;font-size:20px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hd .title small{font-size:13px;font-weight:400;opacity:.9;margin-left:6px}
+.hbtn{background:none;border:0;color:#fff;font-size:30px;line-height:1;width:44px;height:44px}
+.hbtn.sm{font-size:14px;border:1.5px solid rgba(255,255,255,.8);border-radius:8px;width:auto;height:34px;padding:0 10px}
+
+.tabs{flex:0 0 auto;display:flex;background:var(--accent-d)}
+.tabs button{flex:1;background:none;border:0;color:rgba(255,255,255,.75);padding:10px 0;font-size:15px;border-bottom:3px solid transparent}
+.tabs button.on{color:#fff;border-bottom-color:#fff;font-weight:700}
+
+.scroll{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch}
+.stat{display:flex;justify-content:space-around;background:var(--bar);padding:10px 6px;font-size:13px;text-align:center}
+.stat b{display:block;font-size:20px}
+
+.tgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;padding:10px}
+.tcard{background:var(--panel);border:2px solid var(--line);border-radius:10px;min-height:100px;padding:8px 6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.tcard .tname{font-size:20px;font-weight:700}
+.tcard .tinfo{font-size:13px;color:var(--muted)}
+.tcard .tamt{font-size:16px;font-weight:700}
+.tcard.busy{background:var(--busy-bg);border-color:var(--busy)}
+.tcard.busy .tinfo{color:var(--busy);font-weight:700}
+
+.lines{flex:1 1 auto;min-height:90px;overflow:auto;background:var(--bg)}
+.line{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)}
+.line .ln{flex:1;min-width:0;font-size:16px}
+.line .ln{background:none;border:0;padding:4px 0;text-align:left}
+.line .ln small{display:block;color:var(--muted);font-size:12px}
+.tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:var(--busy);color:#fff;font-size:11px;font-weight:700;vertical-align:2px}
+.ask{font-size:14px;color:var(--accent-d);font-weight:700}
+.ck{display:flex;align-items:center;gap:10px;font-size:15px;margin:4px 0 4px}
+.ck input{width:22px;height:22px;accent-color:var(--accent)}
+.ck small{display:block;color:var(--muted);font-size:12px}
+.sumr{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}
+.sumr small{font-size:11px;color:var(--text);opacity:.75}
+.taxgrid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.seg{display:flex;border:1.5px solid var(--accent);border-radius:10px;overflow:hidden;margin:4px 0 8px}
+.seg label{flex:1;position:relative}
+.seg input{position:absolute;opacity:0;inset:0;margin:0}
+.seg span{display:block;text-align:center;padding:9px 4px;font-size:14px;color:var(--accent-d);background:var(--panel)}
+.seg input:checked+span{background:var(--accent);color:#fff;font-weight:700}
+.seg input:focus-visible+span{outline:3px solid var(--accent);outline-offset:-3px}
+.seg.big span{padding:12px 4px;font-size:16px}
+.seg label+label span{border-left:1.5px solid var(--accent)}
+.taxline{text-align:center;color:var(--muted);font-size:12px;margin:-8px 0 12px}
+.csvbtns{display:flex;gap:8px;margin:12px 0 4px}
+.csvbtns button{flex:1;border:1.5px solid var(--accent);background:var(--panel);color:var(--accent-d);border-radius:10px;padding:11px 6px;font-size:14px;font-weight:700}
+.csvbtns button:disabled{opacity:.4}
+.qty{display:flex;align-items:center;gap:4px}
+.qty button{width:34px;height:34px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font-size:18px}
+.qty span{min-width:26px;text-align:center;font-weight:700}
+.lsub{width:76px;text-align:right;font-variant-numeric:tabular-nums}
+.empty{color:var(--muted);text-align:center;padding:28px 12px;font-size:14px}
+
+.sumbar{flex:0 0 auto;display:flex;justify-content:space-between;align-items:center;background:var(--bar);padding:6px 14px;font-size:28px;font-variant-numeric:tabular-nums}
+.sumbar span:first-child{font-size:24px}
+
+.cats{flex:0 0 auto;display:flex;gap:4px;padding:6px 6px 0;overflow-x:auto}
+.cats button{flex:1;min-width:76px;border:1.5px solid var(--accent);background:var(--panel);color:var(--accent);border-radius:8px 8px 0 0;padding:7px 4px;font-size:14px;font-weight:700}
+.cats button.on{background:var(--accent);color:#fff}
+
+.igrid{flex:0 0 auto;max-height:42vh;overflow:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:3px;padding:3px;background:var(--bg)}
+.item{background:var(--cell);border:0;height:86px;padding:0 0 8px;display:flex;flex-direction:column;justify-content:space-between;align-items:stretch;min-width:0}
+.item:active{filter:brightness(.88)}
+.iname{margin-top:20px;background:var(--label);color:#fff;font-weight:800;font-size:13px;padding:4px 2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000}
+.iprice{font-size:17px;font-variant-numeric:tabular-nums}
+.igrid .empty{grid-column:1/-1}
+
+.foot{flex:0 0 auto;display:flex;gap:8px;padding:8px}
+.foot .sp{flex:1}
+.foot button{border:0;border-radius:12px;background:var(--cell);padding:14px 18px;font-size:17px}
+.foot button:disabled{opacity:.4}
+.primary{background:var(--accent)!important;color:#fff!important;font-weight:700}
+.ghost{background:var(--panel)!important;border:1.5px solid var(--line)!important}
+.danger{background:var(--danger)!important;color:#fff!important}
+
+.sec{padding:12px}
+.sec h2{font-size:16px;margin:8px 0;color:var(--accent-d)}
+.sec h3{font-size:13px;margin:14px 0 4px;color:var(--muted);font-weight:600}
+.cards4{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.kpi{background:var(--panel);border-radius:10px;padding:10px 12px;border:1px solid var(--line)}
+.kpi small{color:var(--muted);font-size:12px}
+.kpi div{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.tbl{width:100%;border-collapse:collapse;background:var(--panel);font-size:14px}
+.tbl th,.tbl td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left}
+.tbl td.r,.tbl th.r{text-align:right;font-variant-numeric:tabular-nums}
+.sale{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.sale .top{display:flex;justify-content:space-between;font-weight:700}
+.sale .det{font-size:12px;color:var(--muted);margin-top:4px;line-height:1.6}
+.row{display:flex;align-items:center;gap:8px;width:100%;background:var(--panel);border:0;border-bottom:1px solid var(--line);padding:12px;text-align:left;font-size:15px}
+.row .grow{flex:1}
+.row .muted{color:var(--muted)}
+.mini{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:6px 10px;font-size:13px}
+.mini:disabled{opacity:.35}
+.addrow{width:100%;border:1.5px dashed var(--accent);background:none;color:var(--accent);border-radius:8px;padding:10px;margin-top:6px;font-weight:700}
+.wide{width:100%;border:0;border-radius:10px;padding:12px;margin-top:8px;background:var(--cell);font-size:15px}
+.note{color:var(--muted);font-size:12px;line-height:1.6}
+
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+.ov.show{display:flex}
+.modal{background:var(--panel);border-radius:14px;width:100%;max-width:400px;max-height:90%;overflow:auto}
+.modal h3{margin:0;background:var(--accent);color:#fff;text-align:center;padding:14px;font-size:18px;font-weight:600}
+.mb{padding:14px}
+.mbtns{display:flex;gap:8px;padding:0 14px 14px}
+.mbtns button{flex:1;border:0;border-radius:10px;padding:13px 6px;background:var(--cell);font-size:15px}
+.mbtns button:disabled{opacity:.4}
+.fl{display:block;font-size:13px;color:var(--muted);margin-bottom:12px}
+.fl input,.fl select{display:block;width:100%;margin-top:4px;font-size:20px;padding:10px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+.paytot{text-align:center;font-size:40px;font-weight:700;margin:4px 0 12px;font-variant-numeric:tabular-nums}
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:12px}
+.quick button{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:10px 2px;font-size:14px}
+.chg{display:flex;justify-content:space-between;align-items:baseline;font-size:16px;padding:10px 4px;border-top:1px solid var(--line)}
+.chg b{font-size:28px;font-variant-numeric:tabular-nums}
+.chg b.short{color:var(--danger);font-size:20px}
+.gg{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.gg button{border:1px solid var(--line);background:var(--bg);border-radius:10px;height:54px;font-size:20px;font-weight:700}
+.msg{font-size:16px;line-height:1.6;text-align:center}
+
+#toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:rgba(30,30,30,.92);color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:20;white-space:nowrap}
+#toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="ov" class="ov"><div class="modal" id="mbox" role="dialog" aria-modal="true"></div></div>
+<div id="toast" role="status"></div>
+<script>
+const KEY='izakaya-reji-v1';
+const uid=()=>Math.random().toString(36).slice(2,10);
+const yen=n=>(n<0?'-¥':'¥')+Math.abs(n).toLocaleString('ja-JP');
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=id=>document.getElementById(id);
+
+function defaults(){
+  const it=(name,price,cat)=>({id:uid(),name,price,cat});
+  return {
+    cats:['ドリンク','フード','その他'],
+    items:[
+      it('生ビール',600,0),it('ハイボール',500,0),it('レモンサワー',480,0),it('日本酒 一合',700,0),
+      it('焼酎',500,0),it('ウーロン茶',300,0),it('コーラ',300,0),
+      it('枝豆',380,1),it('唐揚げ',680,1),it('焼き鳥盛り',980,1),it('だし巻き玉子',580,1),
+      it('刺身三点盛り',1280,1),it('ポテトフライ',450,1),it('冷奴',350,1),
+      it('お通し',300,2),it('〆ラーメン',750,2),it('アイス',300,2)
+    ],
+    tables:['C1','C2','C3','C4','T1','T2','T3','T4','座敷1','座敷2']
+      .map(n=>({id:uid(),name:n,open:false,guests:0,start:0,lines:[],stack:[]})),
+    sales:[],
+    tax:defTax()
+  };
+}
+/* 税設定: main=標準税率 sub=サブ税率 mode=価格の扱い(incMain/incSub/excl) round=端数処理 */
+function defTax(){return {main:10,mainName:'店内',sub:8,subName:'持ち帰り',mode:'incMain',round:'floor'};}
+let S=null;
+try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
+if(!S||!Array.isArray(S.items)||!Array.isArray(S.tables)) S=defaults();
+S.tables.forEach(t=>{let fix=false;t.lines.forEach(l=>{if(!l.key){l.key=l.iid+'@'+l.price;fix=true;}if(l.base==null)l.base=l.price;});if(fix)t.stack=[];});
+S.tax=Object.assign(defTax(),S.tax||{});
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+
+let view={name:'tables'};
+let curCat=0, pendingT=null, editId=null, confirmFn=null, scrollLinesBottom=false;
+
+const total=t=>t.lines.reduce((a,l)=>a+l.price*l.qty,0);
+const count=t=>t.lines.reduce((a,l)=>a+l.qty,0);
+const pct=n=>(Math.round(n*100)/100)+'%';
+const rateName=k=>k==='sub'?S.tax.subName:S.tax.mainName;
+function rnd(x){const m=S.tax.round,e=1e-9;return m==='ceil'?Math.ceil(x-e):m==='round'?Math.round(x):(x<0?-Math.floor(-x+e):Math.floor(x+e));}
+/* 価格合計 base（メニューに入力した価格の合計）から、選んだ税率(kind)での支払額と税額を出す。
+   端数処理は会計1回につき1度だけ行う */
+function calcBill(base,kind){
+  const tx=S.tax, r=kind==='sub'?tx.sub:tx.main;
+  let total,tax;
+  if(tx.mode==='excl'){tax=rnd(base*r/100);total=base+tax;}
+  else{
+    const inc=tx.mode==='incSub'?tx.sub:tx.main;
+    total=inc===r?base:rnd(base*(100+r)/(100+inc));
+    tax=rnd(total*r/(100+r));
+  }
+  return {kind,name:rateName(kind),rate:r,mode:tx.mode,base,total,tax};
+}
+const billT=(t,k='main')=>calcBill(total(t),k);
+const modeLabel=m=>m==='excl'?'税抜':m==='incSub'?`${S.tax.subName}${pct(S.tax.sub)}込`:`${S.tax.mainName}${pct(S.tax.main)}込`;
+const curT=()=>S.tables.find(t=>t.id===view.tid);
+const mins=t=>Math.max(0,Math.floor((Date.now()-t.start)/60000));
+const fmtMin=m=>m<60?m+'分':Math.floor(m/60)+'時間'+(m%60)+'分';
+const pad=n=>String(n).padStart(2,'0');
+const fmtTime=ts=>{const d=new Date(ts);return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`};
+
+/* ---------- views ---------- */
+function shell(body,v){
+  return `<header class="hd"><div class="title">居酒屋レジ</div></header>
+  <nav class="tabs">${[['tables','テーブル'],['history','売上'],['settings','設定']]
+    .map(([k,l])=>`<button data-a="tab" data-v="${k}" class="${k===v?'on':''}">${l}</button>`).join('')}</nav>
+  <main class="scroll" data-keep="main">${body}</main>`;
+}
+function tablesView(){
+  const busy=S.tables.filter(t=>t.open);
+  const unpaid=busy.reduce((a,t)=>a+billT(t).total,0);
+  const guests=busy.reduce((a,t)=>a+(t.guests||0),0);
+  return `<div class="stat"><div>使用中<b>${busy.length}/${S.tables.length}</b></div><div>客数<b>${guests}名</b></div><div>未会計<b>${yen(unpaid)}</b></div></div>
+  <div class="tgrid">${S.tables.map(t=>`<button class="tcard ${t.open?'busy':''}" data-a="table" data-id="${t.id}">
+    <div class="tname">${esc(t.name)}</div>
+    ${t.open?`<div class="tinfo">${t.guests?t.guests+'名 ':''}${fmtMin(mins(t))}</div><div class="tamt">${yen(billT(t).total)}</div>`:`<div class="tinfo">空席</div>`}
+  </button>`).join('')}</div>`;
+}
+function orderView(t){
+  const items=S.items.filter(i=>i.cat===curCat);
+  return `<header class="hd"><button class="hbtn" data-a="back" aria-label="テーブル一覧に戻る">‹</button>
+    <div class="title">${esc(t.name)}<small>${t.guests?t.guests+'名':'人数未設定'} ${fmtMin(mins(t))}</small></div>
+    <button class="hbtn sm" data-a="guests">人数</button></header>
+  <div class="lines" data-keep="lines">${t.lines.length?t.lines.map(l=>`<div class="line">
+      <button class="ln" data-a="lprice" data-id="${l.key}" aria-label="${esc(l.name)}の価格を変更">${esc(l.name)}${l.price!==l.base?`<span class="tag">${l.price===0?'サービス':'価格変更'}</span>`:''}<small>${yen(l.price)}${l.price!==l.base?`（定価 ${yen(l.base)}）`:''}</small></button>
+      <div class="qty"><button data-a="dec" data-id="${l.key}" aria-label="${esc(l.name)}を1つ減らす">−</button><span>${l.qty}</span><button data-a="inc" data-id="${l.key}" aria-label="${esc(l.name)}を1つ増やす">+</button></div>
+      <div class="lsub">${yen(l.price*l.qty)}</div></div>`).join('')
+    :`<div class="empty">下のメニューをタップすると注文が追加されます<br>追加した品名をタップすると価格を変更できます</div>`}</div>
+  ${(()=>{const b=billT(t);return `<div class="sumbar"><span>${count(t)} 点</span><span class="sumr"><small>${esc(b.name)} ${pct(b.rate)} 税込${b.total!==b.base?`（${S.tax.mode==='excl'?'税抜':'価格計'} ${yen(b.base)}）`:''}</small>${yen(b.total)}</span></div>`})()}
+  <div class="cats">${S.cats.map((c,i)=>`<button data-a="cat" data-i="${i}" class="${i===curCat?'on':''}">${esc(c)}</button>`).join('')}</div>
+  <div class="igrid" data-keep="igrid">${items.map(i=>`<button class="item" data-a="add" data-id="${i.id}"><span class="iname">${esc(i.name)}</span><span class="iprice">${i.ask?'<span class="ask">価格入力</span>':yen(i.price)}</span></button>`).join('')
+    ||'<div class="empty">このカテゴリにはアイテムがありません。設定から追加できます</div>'}</div>
+  <div class="foot"><button data-a="clear" ${t.lines.length?'':'disabled'}>全消去</button>
+    <button data-a="undo" ${t.stack.length?'':'disabled'}>取消</button><span class="sp"></span>
+    ${t.lines.length?`<button class="primary" data-a="pay">会計 ▶</button>`:`<button class="ghost" data-a="vacate">空席に戻す</button>`}</div>`;
+}
+function historyView(){
+  const s=S.sales;
+  const sum=s.reduce((a,x)=>a+x.total,0), g=s.reduce((a,x)=>a+(x.guests||0),0);
+  const agg={};
+  s.forEach(x=>x.lines.forEach(l=>{agg[l.name]=agg[l.name]||{q:0,a:0};agg[l.name].q+=l.qty;agg[l.name].a+=l.qty*l.price}));
+  const rows=Object.entries(agg).sort((a,b)=>b[1].a-a[1].a);
+  return `<div class="sec">
+    <div class="cards4">
+      <div class="kpi"><small>売上合計</small><div>${yen(sum)}</div></div>
+      <div class="kpi"><small>会計数</small><div>${s.length}組</div></div>
+      <div class="kpi"><small>客数</small><div>${g}名</div></div>
+      <div class="kpi"><small>客単価</small><div>${g?yen(Math.round(sum/g)):'—'}</div></div>
+    </div>
+    ${(()=>{const by={};s.forEach(x=>{const k=(x.taxName||'—')+' '+(x.taxRate!=null?pct(x.taxRate):'');const a=by[k]=by[k]||{n:0,t:0,tax:0};a.n++;a.t+=x.total;a.tax+=x.tax||0;});
+      const e=Object.entries(by);return e.length?`<h2>税率別</h2><div style="overflow-x:auto"><table class="tbl"><thead><tr><th>区分</th><th class="r">件数</th><th class="r">税込合計</th><th class="r">うち消費税</th></tr></thead><tbody>
+      ${e.map(([k,v])=>`<tr><td>${esc(k)}</td><td class="r">${v.n}</td><td class="r">${yen(v.t)}</td><td class="r">${yen(v.tax)}</td></tr>`).join('')}</tbody></table></div>`:''})()}
+    <div class="csvbtns"><button data-a="csvd" ${s.length?'':'disabled'}>明細CSVを保存</button><button data-a="csvi" ${s.length?'':'disabled'}>アイテム別CSVを保存</button></div>
+    <h2>アイテム別</h2>
+    ${rows.length?`<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>品名</th><th class="r">数</th><th class="r">金額（メニュー価格）</th></tr></thead><tbody>
+      ${rows.map(([n,v])=>`<tr><td>${esc(n)}</td><td class="r">${v.q}</td><td class="r">${yen(v.a)}</td></tr>`).join('')}</tbody></table></div>`
+      :'<div class="empty">会計するとここに集計されます</div>'}
+    <h2>会計履歴</h2>
+    ${s.length?s.slice().reverse().map(x=>`<div class="sale"><div class="top"><span>${fmtTime(x.end)}　${esc(x.table)}${x.guests?' '+x.guests+'名':''}</span><span>${yen(x.total)}</span></div>
+      <div class="det">${x.lines.map(l=>esc(l.name)+'×'+l.qty).join('、')}<br>${x.taxRate!=null?`${esc(x.taxName)} ${pct(x.taxRate)}（消費税 ${yen(x.tax)}）<br>`:''}預かり ${yen(x.paid)}／おつり ${yen(x.change)}　滞在 ${fmtMin(Math.floor((x.end-x.start)/60000))}</div></div>`).join('')
+      :'<div class="empty">まだ会計がありません</div>'}
+  </div>`;
+}
+function settingsView(){
+  const tx=S.tax;
+  const radio=(name,v,label,sub)=>`<label class="ck"><input type="radio" name="${name}" value="${v}" data-tax="${name}" ${tx[name]===v?'checked':''}><span>${label}${sub?`<small>${sub}</small>`:''}</span></label>`;
+  return `<div class="sec">
+    <h2>消費税</h2>
+    <div class="taxgrid">
+      <label class="fl">標準税率の名前<input data-tax="mainName" value="${esc(tx.mainName)}" maxlength="8"></label>
+      <label class="fl">標準税率（%）<input data-tax="main" inputmode="decimal" value="${tx.main}"></label>
+      <label class="fl">サブ税率の名前<input data-tax="subName" value="${esc(tx.subName)}" maxlength="8"></label>
+      <label class="fl">サブ税率（%）<input data-tax="sub" inputmode="decimal" value="${tx.sub}"></label>
+    </div>
+    <h3>メニューの価格は</h3>
+    ${radio('mode','incMain',`${esc(tx.mainName)}（${pct(tx.main)}）込みの価格`,`${esc(tx.subName)}で会計すると税率の差の分だけ安く（高く）なります`)}
+    ${radio('mode','incSub',`${esc(tx.subName)}（${pct(tx.sub)}）込みの価格`,`${esc(tx.mainName)}で会計すると税率の差の分だけ高く（安く）なります`)}
+    ${radio('mode','excl','税抜きの価格','会計時に選んだ税率の消費税を上乗せします')}
+    <h3>1円未満の端数</h3>
+    <div class="seg">${[['floor','切り捨て'],['round','四捨五入'],['ceil','切り上げ']].map(([v,l])=>`<label><input type="radio" name="round" value="${v}" data-tax="round" ${tx.round===v?'checked':''}><span>${l}</span></label>`).join('')}</div>
+    <p class="note">例：メニュー価格 ¥1,100 → ${esc(tx.mainName)} ${yen(calcBill(1100,'main').total)}／${esc(tx.subName)} ${yen(calcBill(1100,'sub').total)}</p>
+    <h2 style="margin-top:22px">アイテム</h2>
+    ${S.cats.map((c,ci)=>`<h3>${esc(c)}</h3>
+      ${S.items.filter(i=>i.cat===ci).map(i=>`<button class="row" data-a="iedit" data-id="${i.id}"><span class="grow">${esc(i.name)}</span><span class="muted">${i.ask?'価格入力（初期値 '+yen(i.price)+'）':yen(i.price)}</span></button>`).join('')}
+      <button class="addrow" data-a="inew" data-c="${ci}">＋ ${esc(c)}に追加</button>`).join('')}
+    <h2 style="margin-top:22px">テーブル</h2>
+    ${S.tables.map(t=>`<div class="row"><span class="grow">${esc(t.name)}${t.open?' <span class="muted">（使用中）</span>':''}</span>
+      <button class="mini" data-a="tren" data-id="${t.id}">名前変更</button>
+      <button class="mini" data-a="tdel" data-id="${t.id}" ${t.open?'disabled':''}>削除</button></div>`).join('')}
+    <button class="addrow" data-a="tnew">＋ テーブルを追加</button>
+    <h2 style="margin-top:22px">バックアップ</h2>
+    <p class="note">アイテム・テーブル・税設定・売上をまるごと1つのファイルに保存します。端末の故障や機種変更に備えて、閉店時に保存しておくのがおすすめです。<br>${lastBackupText()}</p>
+    <button class="wide primary" data-a="bexp">バックアップを保存</button>
+    <button class="wide" data-a="bimp">バックアップから復元</button>
+    <input type="file" id="bfile" accept=".json,application/json" hidden>
+    <h2 style="margin-top:22px">データ</h2>
+    <button class="wide" data-a="rsales">売上履歴をリセット（営業終了）</button>
+    <button class="wide danger" data-a="rall">すべて初期化</button>
+    <p class="note">データはこの端末のブラウザ内に保存されます。別の端末とは共有されません。</p>
+  </div>`;
+}
+function render(){
+  const keep={};
+  document.querySelectorAll('[data-keep]').forEach(el=>keep[el.dataset.keep]=el.scrollTop);
+  const key=view.name+(view.tid||'')+(view.name==='order'?curCat:'');
+  const same=key===render.last; render.last=key;
+  if(view.name==='order'){
+    const t=curT();
+    if(!t){view={name:'tables'};return render();}
+    $('app').innerHTML=orderView(t);
+  }else{
+    const body=view.name==='history'?historyView():view.name==='settings'?settingsView():tablesView();
+    $('app').innerHTML=shell(body,view.name);
+  }
+  if(same) document.querySelectorAll('[data-keep]').forEach(el=>{if(keep[el.dataset.keep]!=null)el.scrollTop=keep[el.dataset.keep]});
+  if(scrollLinesBottom){const l=document.querySelector('.lines');if(l)l.scrollTop=l.scrollHeight;scrollLinesBottom=false;}
+}
+
+/* ---------- modal / toast ---------- */
+function showModal(html){$('mbox').innerHTML=html;$('ov').classList.add('show');const f=$('mbox').querySelector('input');if(f)setTimeout(()=>f.focus(),50);}
+function closeModal(){$('ov').classList.remove('show');$('mbox').innerHTML='';}
+function confirmBox(msg,fn,okLabel='OK',danger=false){
+  confirmFn=fn;
+  showModal(`<h3>確認</h3><div class="mb"><div class="msg">${msg}</div></div>
+  <div class="mbtns"><button data-a="mclose">キャンセル</button><button class="${danger?'danger':'primary'}" data-a="cok">${okLabel}</button></div>`);
+}
+let toastTimer;
+function toast(m){const el=$('toast');el.textContent=m;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2400);}
+
+function openGuests(tid,isNew){
+  pendingT=tid;const t=S.tables.find(x=>x.id===tid);
+  showModal(`<h3>${esc(t.name)} の人数</h3><div class="mb"><div class="gg">
+    ${Array.from({length:10},(_,i)=>`<button data-a="g" data-n="${i+1}">${i+1}</button>`).join('')}</div></div>
+    <div class="mbtns"><button data-a="mclose">キャンセル</button>${isNew?'<button data-a="g" data-n="0">人数なしで開始</button>':''}</div>`);
+}
+let payKind='main';
+function openPay(){
+  const t=curT(); payKind='main';
+  showModal(`<h3>会計　${esc(t.name)}</h3><div class="mb">
+    <div class="seg big" role="radiogroup" aria-label="税率">${['main','sub'].map(k=>`<label><input type="radio" name="pk" value="${k}" data-pk ${k==='main'?'checked':''}><span>${esc(rateName(k))} ${pct(k==='sub'?S.tax.sub:S.tax.main)}</span></label>`).join('')}</div>
+    <div class="paytot" id="ptot"></div>
+    <div class="taxline" id="ptax"></div>
+    <label class="fl">お預かり<input id="paid" inputmode="numeric" autocomplete="off" placeholder="0"></label>
+    <div class="quick"><button data-a="pq" data-v="exact">ちょうど</button><button data-a="pq" data-v="1000">+¥1,000</button><button data-a="pq" data-v="5000">+¥5,000</button>
+      <button data-a="pq" data-v="10000">+¥10,000</button><button data-a="pq" data-v="500">+¥500</button><button data-a="pq" data-v="0">クリア</button></div>
+    <div class="chg"><span>おつり</span><b id="chg">—</b></div></div>
+    <div class="mbtns"><button data-a="mclose">戻る</button><button class="primary" id="payok" data-a="payok" disabled>会計を確定</button></div>`);
+  updPay();
+}
+function updPay(){
+  const b=billT(curT(),payKind);
+  $('ptot').textContent=yen(b.total);
+  $('ptax').textContent=`内消費税 ${yen(b.tax)}（${pct(b.rate)}）`+(b.total!==b.base?`　メニュー価格計 ${yen(b.base)}・${modeLabel(b.mode)}`:'');
+  updChg();
+}
+function paidVal(){return parseInt(($('paid').value||'').replace(/[^\d]/g,''))||0;}
+function updChg(){
+  const tot=billT(curT(),payKind).total,p=paidVal(),ok=p>=tot,el=$('chg');
+  el.textContent=p?(ok?yen(p-tot):'不足 '+yen(tot-p)):'—';
+  el.className=p&&!ok?'short':'';
+  $('payok').disabled=!ok;
+}
+function openItem(id,cat){
+  editId=id||null;
+  const it=id?S.items.find(i=>i.id===id):{name:'',price:'',cat:+cat};
+  showModal(`<h3>${id?'アイテム編集':'アイテム追加'}</h3><div class="mb">
+    <label class="fl">品名<input id="iname" value="${esc(it.name)}" maxlength="20"></label>
+    <label class="fl">価格（値引きはマイナス）<input id="iprice" inputmode="numeric" value="${it.price}"></label>
+    <label class="fl">カテゴリ<select id="icat">${S.cats.map((c,i)=>`<option value="${i}" ${i===it.cat?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
+    <label class="ck"><input type="checkbox" id="iask" ${it.ask?'checked':''}><span>注文のたびに価格を入力<small>時価の品など。上の価格は入力欄の初期値になります</small></span></label></div>
+    <div class="mbtns">${id?'<button class="danger" data-a="idel">削除</button>':''}<button data-a="mclose">キャンセル</button><button class="primary" data-a="isave">保存</button></div>`);
+}
+function openTableName(id){
+  editId=id||null;
+  const t=id?S.tables.find(x=>x.id===id):null;
+  showModal(`<h3>${t?'テーブル名を変更':'テーブルを追加'}</h3><div class="mb">
+    <label class="fl">テーブル名<input id="tname" value="${t?esc(t.name):'T'+(S.tables.length+1)}" maxlength="10"></label></div>
+    <div class="mbtns"><button data-a="mclose">キャンセル</button><button class="primary" data-a="tsave">保存</button></div>`);
+}
+
+/* ---------- order ops ---------- */
+function addItem(t,iid,price){
+  const it=S.items.find(i=>i.id===iid); if(!it)return;
+  if(price==null)price=it.price;
+  const key=iid+'@'+price;
+  const l=t.lines.find(x=>x.key===key);
+  if(l)l.qty++; else t.lines.push({key,iid,name:it.name,price,base:it.price,qty:1});
+  t.stack.push(key);
+}
+function incLine(t,key){const l=t.lines.find(x=>x.key===key);if(!l)return;l.qty++;t.stack.push(key);}
+function decItem(t,key,fromUndo){
+  const l=t.lines.find(x=>x.key===key); if(!l)return;
+  l.qty--; if(l.qty<=0)t.lines=t.lines.filter(x=>x!==l);
+  if(!fromUndo){const k=t.stack.lastIndexOf(key);if(k>=0)t.stack.splice(k,1);}
+}
+function repriceLine(t,key,price){
+  const l=t.lines.find(x=>x.key===key); if(!l||l.price===price)return;
+  const nk=l.iid+'@'+price, other=t.lines.find(x=>x.key===nk);
+  if(other){other.qty+=l.qty;t.lines=t.lines.filter(x=>x!==l);}
+  else{l.price=price;l.key=nk;}
+  t.stack=t.stack.map(k=>k===key?nk:k);
+}
+
+/* 価格入力モーダル: mode 'add'（都度入力アイテム）/ 'line'（注文済みの行） */
+let priceCtx=null;
+function openPrice(ctx){
+  priceCtx=ctx; const t=curT();
+  let name,base,cur,qty=0;
+  if(ctx.mode==='add'){const it=S.items.find(i=>i.id===ctx.iid);name=it.name;base=it.price;cur=it.price;}
+  else{const l=t.lines.find(x=>x.key===ctx.key);name=l.name;base=l.base;cur=l.price;qty=l.qty;}
+  priceCtx.base=base;
+  showModal(`<h3>${esc(name)}</h3><div class="mb">
+    <label class="fl">${ctx.mode==='add'?'価格':'1つあたりの価格'+(qty>1?`（${qty}点すべてに適用）`:'')}<input id="pval" inputmode="numeric" autocomplete="off" value="${cur}"></label>
+    <div class="quick"><button data-a="pp" data-v="0">サービス ¥0</button><button data-a="pp" data-v="half">半額</button><button data-a="pp" data-v="base">定価 ${yen(base)}</button></div>
+    ${ctx.mode==='line'&&qty>1?'<p class="note">1点だけサービスにしたいときは、−で1つ減らしてからもう一度追加し、その行を変更してください。</p>':''}</div>
+    <div class="mbtns"><button data-a="mclose">キャンセル</button><button class="primary" data-a="pok">${ctx.mode==='add'?'追加':'変更'}</button></div>`);
+}
+
+/* CSV */
+const csvCell=v=>{v=String(v??'');return /[",\n\r]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+const csvJoin=rows=>rows.map(r=>r.map(csvCell).join(',')).join('\r\n')+'\r\n';
+const fullTime=ts=>{const d=new Date(ts);return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;};
+const stamp=()=>{const d=new Date();return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;};
+function detailCSV(){
+  const rows=[['会計No','会計日時','テーブル','人数','入店時刻','品名','単価','定価','数量','小計','備考','価格の扱い','税区分','税率(%)','メニュー価格計','消費税','会計合計(税込)','お預かり','おつり']];
+  const ml=m=>m==='excl'?'税抜':m==='incSub'?'サブ税率込':m==='incMain'?'標準税率込':'';
+  S.sales.forEach((x,i)=>x.lines.forEach((l,j)=>{
+    const base=l.base??l.price, note=l.price===base?'':(l.price===0?'サービス':'価格変更'), f=j===0;
+    rows.push([i+1,fullTime(x.end),x.table,x.guests||'',fullTime(x.start),l.name,l.price,base,l.qty,l.price*l.qty,note,
+      f?ml(x.priceMode):'',f?(x.taxName||''):'',f?(x.taxRate??''):'',f?(x.base??x.total):'',f?(x.tax??''):'',
+      f?x.total:'',f?x.paid:'',f?x.change:'']);
+  }));
+  return csvJoin(rows);
+}
+function itemCSV(){
+  const agg={};
+  S.sales.forEach(x=>x.lines.forEach(l=>{const a=agg[l.name]=agg[l.name]||{q:0,amt:0,svc:0};a.q+=l.qty;a.amt+=l.price*l.qty;if(l.price===0&&(l.base??0)!==0)a.svc+=l.qty;}));
+  const rows=[['品名','数量','うちサービス','金額']];
+  Object.entries(agg).sort((a,b)=>b[1].amt-a[1].amt).forEach(([n,a])=>rows.push([n,a.q,a.svc,a.amt]));
+  const sum=S.sales.reduce((s,x)=>s+x.total,0), g=S.sales.reduce((s,x)=>s+(x.guests||0),0);
+  rows.push([],['売上合計(税込)','','',sum],['会計数','','',S.sales.length],['客数','','',g],[]);
+  const by={};S.sales.forEach(x=>{const k=(x.taxName||'不明')+(x.taxRate!=null?' '+x.taxRate+'%':'');const a=by[k]=by[k]||{n:0,t:0,tax:0};a.n++;a.t+=x.total;a.tax+=x.tax||0;});
+  rows.push(['税区分','件数','うち消費税','税込合計']);
+  Object.entries(by).forEach(([k,a])=>rows.push([k,a.n,a.tax,a.t]));
+  return csvJoin(rows);
+}
+const saveCSV=(name,text)=>saveFile(name,'﻿'+text,'text/csv','CSV'); // BOM: Excelで文字化けしないように
+async function saveFile(name,data,mime,label){
+  // 1) Claude上のページ: downloads 機能
+  let dl=null;
+  try{dl=window.claude&&window.claude.use?await window.claude.use('downloads'):null;}catch(e){dl=null;}
+  if(dl){
+    try{const r=await dl.save({filename:name,data});if(r&&r.status==='saved')toast(label+'を保存しました');}
+    catch(e){if(e&&e.code==='declined')return;toast(e&&e.code==='rate_limited'?'保存の確認が開いています':'この画面では保存できません');}
+    return;
+  }
+  // 2) ホーム画面アプリ(iPhone等): 共有シート →「ファイルに保存」
+  try{
+    const f=new File([data],name,{type:mime});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f]});return;}
+  }catch(e){if(e&&e.name==='AbortError')return;}
+  // 3) 通常のブラウザ: ダウンロード
+  try{
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:mime}));a.download=name;
+    document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);
+  }catch(e){toast('この画面では保存できません');}
+}
+/* バックアップ: 全データ(アイテム・テーブル・税設定・売上)をJSONで書き出し/読み込み */
+function exportBackup(){
+  const body=JSON.stringify({app:'izakaya-reji',version:1,exportedAt:new Date().toISOString(),data:S},null,1);
+  saveFile(`居酒屋レジ_バックアップ_${stamp()}.json`,body,'application/json','バックアップ');
+  try{localStorage.setItem(KEY+'-lastbackup',String(Date.now()));}catch(e){}
+}
+function validBackup(o){
+  const d=o&&o.app==='izakaya-reji'?o.data:o;
+  return d&&Array.isArray(d.items)&&Array.isArray(d.tables)&&Array.isArray(d.sales)&&Array.isArray(d.cats)?d:null;
+}
+function importBackup(file){
+  const r=new FileReader();
+  r.onload=()=>{
+    let d=null; try{d=validBackup(JSON.parse(r.result));}catch(e){d=null;}
+    if(!d){toast('居酒屋レジのバックアップファイルではありません');return;}
+    confirmBox(`バックアップから復元します。<br>今のデータ（売上${S.sales.length}件・使用中テーブル${S.tables.filter(t=>t.open).length}卓）はバックアップの内容（売上${d.sales.length}件）に置き換わります。`,()=>{
+      S=d; S.tax=Object.assign(defTax(),S.tax||{});
+      S.tables.forEach(t=>{t.lines=t.lines||[];t.stack=t.stack||[];t.lines.forEach(l=>{if(!l.key)l.key=l.iid+'@'+l.price;if(l.base==null)l.base=l.price;});});
+      view={name:'tables'}; toast('復元しました');
+    },'復元する',true);
+  };
+  r.onerror=()=>toast('ファイルを読み込めませんでした');
+  r.readAsText(file);
+}
+function lastBackupText(){
+  let ts=0; try{ts=+localStorage.getItem(KEY+'-lastbackup')||0;}catch(e){}
+  return ts?'前回のバックアップ：'+fmtTime(ts):'まだバックアップしていません';
+}
+function resetTable(t){t.open=false;t.guests=0;t.start=0;t.lines=[];t.stack=[];}
+
+/* ---------- events ---------- */
+document.addEventListener('click',e=>{
+  if(e.target===$('ov')){closeModal();return;}
+  const b=e.target.closest('[data-a]'); if(!b||b.disabled)return;
+  const a=b.dataset.a, id=b.dataset.id, t=curT();
+  switch(a){
+    case 'tab': view={name:b.dataset.v}; break;
+    case 'table': {const tb=S.tables.find(x=>x.id===id);
+      if(tb.open){view={name:'order',tid:id};curCat=0;} else {openGuests(id,true);return;} break;}
+    case 'back': view={name:'tables'}; break;
+    case 'cat': curCat=+b.dataset.i; break;
+    case 'add': {const it=S.items.find(i=>i.id===id);
+      if(it&&it.ask){openPrice({mode:'add',iid:id});return;}
+      addItem(t,id); scrollLinesBottom=true; save(); break;}
+    case 'inc': incLine(t,id); save(); break;
+    case 'lprice': openPrice({mode:'line',key:id}); return;
+    case 'pp': {const v=b.dataset.v,base=priceCtx.base;
+      $('pval').value=v==='base'?base:v==='half'?Math.floor(base/2):v; return;}
+    case 'pok': {const raw=$('pval').value.replace(/[^\d-]/g,''),p=parseInt(raw);
+      if(isNaN(p)){toast('価格を数字で入力してください');return;}
+      if(priceCtx.mode==='add'){addItem(t,priceCtx.iid,p);scrollLinesBottom=true;}
+      else repriceLine(t,priceCtx.key,p);
+      priceCtx=null; save(); closeModal(); break;}
+    case 'csvd': saveCSV(`売上明細_${stamp()}.csv`,detailCSV()); return;
+    case 'csvi': saveCSV(`アイテム別_${stamp()}.csv`,itemCSV()); return;
+    case 'bexp': exportBackup(); setTimeout(render,300); return;
+    case 'bimp': {const f=$('bfile'); if(f){f.value='';f.click();} return;}
+    case 'dec': decItem(t,id); save(); break;
+    case 'undo': {const iid=t.stack.pop(); if(iid)decItem(t,iid,true); save(); break;}
+    case 'clear': confirmBox(`${esc(t.name)} の注文をすべて消去しますか？`,()=>{t.lines=[];t.stack=[];},'消去する',true); return;
+    case 'vacate': confirmBox(`${esc(t.name)} を空席に戻しますか？`,()=>{resetTable(t);view={name:'tables'};},'空席に戻す'); return;
+    case 'guests': openGuests(t.id,false); return;
+    case 'g': {const tb=S.tables.find(x=>x.id===pendingT);
+      if(!tb.open){tb.open=true;tb.start=Date.now();tb.lines=[];tb.stack=[];curCat=0;}
+      tb.guests=+b.dataset.n; save(); closeModal(); view={name:'order',tid:tb.id}; break;}
+    case 'pay': openPay(); return;
+    case 'pq': {const v=b.dataset.v,inp=$('paid');
+      inp.value=v==='exact'?billT(t,payKind).total:v==='0'?'':paidVal()+(+v); updChg(); return;}
+    case 'payok': {const b=billT(t,payKind),tot=b.total,p=paidVal(); if(p<tot)return;
+      S.sales.push({id:uid(),table:t.name,guests:t.guests,start:t.start,end:Date.now(),
+        taxKind:b.kind,taxName:b.name,taxRate:b.rate,priceMode:b.mode,base:b.base,tax:b.tax,
+        lines:t.lines.map(l=>({name:l.name,price:l.price,base:l.base,qty:l.qty})),total:tot,paid:p,change:p-tot});
+      const name=t.name; resetTable(t); save(); closeModal(); view={name:'tables'};
+      toast(`${name} 会計完了　おつり ${yen(p-tot)}`); break;}
+    case 'mclose': closeModal(); return;
+    case 'cok': {const fn=confirmFn;confirmFn=null;closeModal();if(fn)fn();save();break;}
+    case 'inew': openItem(null,b.dataset.c); return;
+    case 'iedit': openItem(id); return;
+    case 'isave': {const name=$('iname').value.trim();const raw=$('iprice').value.replace(/[^\d-]/g,'');const price=parseInt(raw);
+      if(!name){toast('品名を入力してください');return;}
+      if(isNaN(price)){toast('価格を数字で入力してください');return;}
+      const cat=+$('icat').value, ask=$('iask').checked;
+      if(editId){Object.assign(S.items.find(i=>i.id===editId),{name,price,cat,ask});}
+      else S.items.push({id:uid(),name,price,cat,ask});
+      save(); closeModal(); toast('保存しました'); break;}
+    case 'idel': {const it=S.items.find(i=>i.id===editId);
+      confirmBox(`「${esc(it.name)}」を削除しますか？`,()=>{S.items=S.items.filter(i=>i.id!==editId);},'削除する',true); return;}
+    case 'tnew': openTableName(null); return;
+    case 'tren': openTableName(id); return;
+    case 'tsave': {const name=$('tname').value.trim(); if(!name){toast('テーブル名を入力してください');return;}
+      if(editId)S.tables.find(x=>x.id===editId).name=name;
+      else S.tables.push({id:uid(),name,open:false,guests:0,start:0,lines:[],stack:[]});
+      save(); closeModal(); break;}
+    case 'tdel': {const tb=S.tables.find(x=>x.id===id);
+      confirmBox(`テーブル「${esc(tb.name)}」を削除しますか？`,()=>{S.tables=S.tables.filter(x=>x.id!==id);},'削除する',true); return;}
+    case 'rsales': confirmBox('売上履歴をすべて消去します。<br>先に「売上」タブからCSVを保存しておくと安心です。<br>使用中のテーブルはそのまま残ります。',()=>{S.sales=[];},'リセット',true); return;
+    case 'rall': confirmBox('アイテム・テーブル・売上をすべて初期状態に戻します。',()=>{S=defaults();view={name:'tables'};},'初期化する',true); return;
+  }
+  render();
+});
+document.addEventListener('input',e=>{if(e.target.id==='paid')updChg();});
+document.addEventListener('change',e=>{
+  const el=e.target;
+  if(el.hasAttribute('data-pk')){payKind=el.value;updPay();return;}
+  if(el.id==='bfile'){if(el.files&&el.files[0])importBackup(el.files[0]);return;}
+  const k=el.dataset.tax; if(!k)return;
+  if(k==='main'||k==='sub'){
+    const v=parseFloat(el.value.replace(/[^\d.]/g,''));
+    if(isNaN(v)||v<0||v>100){toast('税率は0〜100の数字で入力してください');el.value=S.tax[k];return;}
+    S.tax[k]=v;
+  }else if(k==='mainName'||k==='subName'){
+    const v=el.value.trim(); if(!v){el.value=S.tax[k];return;} S.tax[k]=v;
+  }else S.tax[k]=el.value;
+  save(); render(); toast('税の設定を保存しました');
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('ov').classList.contains('show'))closeModal();});
+/* オフライン対応（ホーム画面アプリとして公開したときだけ有効。Claude上のページでは何もしない） */
+if('serviceWorker' in navigator && location.protocol==='https:' && !/claude\.(ai|site)|claudeusercontent/.test(location.hostname)){
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{});});
+}
+/* 保存データをブラウザが勝手に消さないようにお願いする（対応ブラウザのみ） */
+try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});}catch(e){}
+setInterval(()=>{if(!$('ov').classList.contains('show')&&(view.name==='tables'||view.name==='order'))render();},30000);
+render();
+</script>
+</body>
+</html>
