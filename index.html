@@ -86,6 +86,12 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .seg label+label span{border-left:1.5px solid var(--accent)}
 .taxline{text-align:center;color:var(--muted);font-size:12px;margin:-8px 0 12px}
 .mini{white-space:nowrap}
+.salebtns{display:flex;gap:8px;margin-top:8px}
+.logobox{display:flex;align-items:center;justify-content:center;min-height:70px;border:1.5px dashed var(--line);border-radius:10px;background:#fff;padding:10px;margin-bottom:4px}
+.logobox img{max-width:70%;max-height:120px}
+.rprev{background:#d9d9d9;border-radius:10px;padding:14px 8px;display:flex;justify-content:center;max-height:55vh;overflow:auto}
+.rprev img{width:100%;height:auto;box-shadow:0 1px 6px rgba(0,0,0,.25);background:#fff}
+.note.warn{color:var(--danger)}
 .cathd{display:flex;align-items:flex-end;justify-content:space-between;gap:8px}
 .cathd .mini{margin-bottom:4px}
 .clipbar{display:flex;align-items:center;gap:8px;background:var(--busy-bg);border:1.5px solid var(--busy);border-radius:10px;padding:10px 12px;margin:8px 0;font-size:14px}
@@ -203,6 +209,8 @@ function defaults(){
   };
 }
 /* 税設定: main=標準税率 sub=サブ税率 mode=価格の扱い(incMain/incSub/excl) round=端数処理 */
+/* 店舗情報（レシート・領収書に印字）。paper=用紙幅(mm) */
+function defShop(){return {name:'',addr:'',tel:'',regno:'',footer:'またのご来店をお待ちしております',tadashi:'御飲食代として',logo:'',paper:58};}
 function defTax(){return {main:10,mainName:'店内',sub:8,subName:'持ち帰り',mode:'incMain',round:'floor'};}
 let S=null;
 try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
@@ -221,6 +229,7 @@ function normalize(D){
     t.lines.forEach(l=>{if(!l.key){l.key=l.iid+'@'+l.price;fix=true;}if(l.base==null)l.base=l.price;});if(fix)t.stack=[];});
   D.sales=D.sales||[];
   D.tax=Object.assign(defTax(),D.tax||{});
+  D.shop=Object.assign(defShop(),D.shop||{});
   return D;
 }
 normalize(S);
@@ -314,7 +323,8 @@ function historyView(){
       :'<div class="empty">会計するとここに集計されます</div>'}
     <h2>会計履歴</h2>
     ${s.length?s.slice().reverse().map(x=>`<div class="sale"><div class="top"><span>${fmtTime(x.end)}　${esc(x.table)}${x.guests?' '+x.guests+'名':''}</span><span>${yen(x.total)}</span></div>
-      <div class="det">${x.lines.map(l=>esc(l.name)+'×'+l.qty).join('、')}<br>${x.taxRate!=null?`${esc(x.taxName)} ${pct(x.taxRate)}（消費税 ${yen(x.tax)}）<br>`:''}預かり ${yen(x.paid)}／おつり ${yen(x.change)}　滞在 ${fmtMin(Math.floor((x.end-x.start)/60000))}</div></div>`).join('')
+      <div class="det">No.${saleNo(x)}<br>${x.lines.map(l=>esc(l.name)+'×'+l.qty).join('、')}<br>${x.taxRate!=null?`${esc(x.taxName)} ${pct(x.taxRate)}（消費税 ${yen(x.tax)}）<br>`:''}預かり ${yen(x.paid)}／おつり ${yen(x.change)}　滞在 ${fmtMin(Math.floor((x.end-x.start)/60000))}</div>
+      <div class="salebtns"><button class="mini" data-a="rcpt" data-id="${x.id}">レシート</button><button class="mini" data-a="ryo" data-id="${x.id}">領収書</button></div></div>`).join('')
       :'<div class="empty">まだ会計がありません</div>'}
   </div>`;
 }
@@ -336,6 +346,20 @@ function settingsView(){
     <h3>1円未満の端数</h3>
     <div class="seg">${[['floor','切り捨て'],['round','四捨五入'],['ceil','切り上げ']].map(([v,l])=>`<label><input type="radio" name="round" value="${v}" data-tax="round" ${tx.round===v?'checked':''}><span>${l}</span></label>`).join('')}</div>
     <p class="note">例：メニュー価格 ¥1,100 → ${esc(tx.mainName)} ${yen(calcBill(1100,'main').total)}／${esc(tx.subName)} ${yen(calcBill(1100,'sub').total)}</p>
+    <h2 style="margin-top:22px">レシート・領収書</h2>
+    <p class="note">ここに入れた内容がレシートと領収書に印字されます。空欄の項目は印字しません。</p>
+    <div class="logobox">${S.shop.logo?`<img src="${S.shop.logo}" alt="ロゴ">`:'<span class="muted">ロゴなし</span>'}</div>
+    <div class="csvbtns"><button data-a="logopick">${S.shop.logo?'ロゴを変更':'ロゴを選ぶ'}</button>${S.shop.logo?'<button data-a="logodel">ロゴを消す</button>':''}</div>
+    <input type="file" id="logofile" accept="image/*" hidden>
+    <label class="fl">店名<input data-shop="name" value="${esc(S.shop.name)}" maxlength="24" placeholder="例：居酒屋〇〇"></label>
+    <label class="fl">住所<input data-shop="addr" value="${esc(S.shop.addr)}" maxlength="40"></label>
+    <label class="fl">電話番号<input data-shop="tel" value="${esc(S.shop.tel)}" inputmode="tel" maxlength="20"></label>
+    <label class="fl">登録番号（インボイス）<input data-shop="regno" value="${esc(S.shop.regno)}" maxlength="14" placeholder="T1234567890123" autocapitalize="characters"></label>
+    <label class="fl">領収書の但し書き<input data-shop="tadashi" value="${esc(S.shop.tadashi)}" maxlength="20"></label>
+    <label class="fl">下部のひとこと<input data-shop="footer" value="${esc(S.shop.footer)}" maxlength="40"></label>
+    <h3>用紙の幅</h3>
+    <div class="seg">${[[58,'58mm'],[80,'80mm']].map(([v,l])=>`<label><input type="radio" name="paper" value="${v}" data-shop="paper" ${+S.shop.paper===v?'checked':''}><span>${l}</span></label>`).join('')}</div>
+    <div class="csvbtns"><button data-a="rsample" data-v="rcpt">レシートの見本</button><button data-a="rsample" data-v="ryo">領収書の見本</button></div>
     <h2 style="margin-top:22px">カテゴリ</h2>
     <p class="note">並び順が注文画面のタブの順番になります。</p>
     ${S.cats.map((c,ci)=>`<div class="row"><span class="grow">${esc(c.name)} <span class="muted">${S.items.filter(i=>i.cat===c.id).length}品</span></span>
@@ -532,6 +556,206 @@ function applyText(){
   save(); closeModal(); render(); toast(`${add}品を追加${upd?`、${upd}品を更新`:''}しました`);
 }
 
+/* ==========================================================
+   レシート・領収書
+   様式：国税庁インボイスQ&A 問58「適格簡易請求書」の記載例に準拠
+   ① 発行者名＋登録番号 ② 年月日 ③ 品目（軽減税率対象は※）
+   ④ 税率ごとの対象額（税込） ⑤ 適用税率と消費税額（両方記載）
+   画像として描いてPDFにし、共有画面から印刷アプリ等へ渡す
+   ========================================================== */
+const dayKey=ts=>{const d=new Date(ts);return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;};
+function nextSaleNo(ts){const k=dayKey(ts);return `${k}-${String(S.sales.filter(x=>dayKey(x.end)===k).length+1).padStart(4,'0')}`;}
+function saleNo(x){if(x.no)return x.no;const k=dayKey(x.end);const same=S.sales.filter(s=>dayKey(s.end)===k);return `${k}-${String(same.indexOf(x)+1).padStart(4,'0')}`;}
+const WD='日月火水木金土';
+const jpDate=ts=>{const d=new Date(ts);return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日(${WD[d.getDay()]}) ${pad(d.getHours())}:${pad(d.getMinutes())}`;};
+const yenR=n=>(n<0?'-¥':'¥')+Math.abs(n).toLocaleString('ja-JP');
+
+let logoImg=null, logoSrc='';
+function getLogo(){
+  if(!S.shop.logo)return Promise.resolve(null);
+  if(logoImg&&logoSrc===S.shop.logo)return Promise.resolve(logoImg);
+  return new Promise(res=>{const im=new Image();im.onload=()=>{logoImg=im;logoSrc=S.shop.logo;res(im);};im.onerror=()=>res(null);im.src=S.shop.logo;});
+}
+/* ロゴ：白黒（グレー）にして横幅を印字幅に収め、PNGで保存 */
+function loadLogo(file){
+  const fr=new FileReader();
+  fr.onload=()=>{const im=new Image();im.onload=()=>{
+      const maxW=576,maxH=240,sc=Math.min(1,maxW/im.width,maxH/im.height);
+      const w=Math.max(1,Math.round(im.width*sc)),h=Math.max(1,Math.round(im.height*sc));
+      const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');
+      g.fillStyle='#fff';g.fillRect(0,0,w,h);g.drawImage(im,0,0,w,h);
+      const d=g.getImageData(0,0,w,h),p=d.data;
+      for(let i=0;i<p.length;i+=4){const y=0.299*p[i]+0.587*p[i+1]+0.114*p[i+2];p[i]=p[i+1]=p[i+2]=y;}
+      g.putImageData(d,0,0);
+      S.shop.logo=c.toDataURL('image/png'); logoImg=null; save(); render(); toast('ロゴを設定しました');
+    };im.onerror=()=>toast('画像を読み込めませんでした');im.src=fr.result;};
+  fr.readAsDataURL(file);
+}
+
+/* 印字内容を「行の命令」の並びにする */
+function receiptOps(x,kind){
+  const sh=S.shop, ops=[], hasTax=x.taxRate!=null;
+  const reduced=hasTax&&x.taxKind==='sub'&&x.taxRate<S.tax.main;
+  const head=()=>{
+    if(sh.logo)ops.push({t:'logo'});
+    if(sh.name)ops.push({t:'text',s:sh.name,a:'c',z:1.5,b:1});
+    if(sh.addr)ops.push({t:'text',s:sh.addr,a:'c',z:.85});
+    if(sh.tel)ops.push({t:'text',s:'TEL '+sh.tel,a:'c',z:.85});
+    if(sh.regno)ops.push({t:'text',s:'登録番号 '+sh.regno,a:'c',z:.85});
+  };
+  const taxBlock=()=>{
+    if(!hasTax)return;
+    ops.push({t:'lr',l:`${pct(x.taxRate)}対象${reduced?'（軽減）':''}`,r:yenR(x.total)});
+    ops.push({t:'lr',l:'　内消費税等',r:yenR(x.tax)});
+  };
+  if(kind==='ryo'){
+    if(sh.logo)ops.push({t:'logo'});
+    ops.push({t:'title',s:'領 収 書'});
+    ops.push({t:'gap',h:.6});
+    ops.push({t:'text',s:jpDate(x.end),a:'r',z:.85});
+    ops.push({t:'gap',h:.6});
+    ops.push({t:'amount',s:yenR(x.total)+'-'});
+    ops.push({t:'text',s:'但　'+(sh.tadashi||'御飲食代として'),a:'l'});
+    ops.push({t:'text',s:'上記正に領収いたしました',a:'l',z:.85});
+    ops.push({t:'rule'});
+    ops.push({t:'text',s:'＜内訳＞',a:'l',z:.85});
+    taxBlock();
+    if(reduced)ops.push({t:'text',s:'※軽減税率（'+pct(x.taxRate)+'）対象',a:'l',z:.8});
+    if(x.total>=50000)ops.push({t:'stamp'});
+    ops.push({t:'rule'});
+    if(sh.name)ops.push({t:'text',s:sh.name,a:'l',z:1.15,b:1});
+    if(sh.addr)ops.push({t:'text',s:sh.addr,a:'l',z:.85});
+    if(sh.tel)ops.push({t:'text',s:'TEL '+sh.tel,a:'l',z:.85});
+    if(sh.regno)ops.push({t:'text',s:'登録番号 '+sh.regno,a:'l',z:.85});
+    ops.push({t:'text',s:'No.'+saleNo(x),a:'l',z:.8});
+    return ops;
+  }
+  head();
+  ops.push({t:'gap',h:.6});
+  ops.push({t:'text',s:jpDate(x.end),a:'l',z:.9});
+  ops.push({t:'lr',l:'No.'+saleNo(x),r:`${x.table}${x.guests?'　'+x.guests+'名':''}`,z:.9});
+  ops.push({t:'rule'});
+  x.lines.forEach(l=>{
+    const base=l.base??l.price, tag=l.price===base?'':(l.price===0?'（サービス）':'（値引）');
+    const nm=l.name+(reduced?' ※':'')+tag;
+    if(l.qty===1)ops.push({t:'lr',l:nm,r:yenR(l.price)});
+    else{ops.push({t:'text',s:nm,a:'l'});ops.push({t:'lr',l:`　${yenR(l.price)} × ${l.qty}`,r:yenR(l.price*l.qty)});}
+  });
+  ops.push({t:'rule'});
+  const cnt=x.lines.reduce((a,l)=>a+l.qty,0);
+  if(hasTax&&x.base!=null&&x.base!==x.total){
+    if(x.priceMode==='excl'){ops.push({t:'lr',l:`小計（税抜）　${cnt}点`,r:yenR(x.base)});ops.push({t:'lr',l:`消費税（${pct(x.taxRate)}）`,r:yenR(x.total-x.base)});}
+    else{ops.push({t:'lr',l:`小計　${cnt}点`,r:yenR(x.base)});ops.push({t:'lr',l:`${x.taxName}（${pct(x.taxRate)}）適用`,r:yenR(x.total-x.base)});}
+  }else ops.push({t:'lr',l:`点数`,r:`${cnt}点`,z:.9});
+  ops.push({t:'lr',l:'合　計',r:yenR(x.total),z:1.45,b:1});
+  taxBlock();
+  ops.push({t:'gap',h:.3});
+  ops.push({t:'lr',l:'お預り',r:yenR(x.paid)});
+  ops.push({t:'lr',l:'お　釣',r:yenR(x.change)});
+  if(reduced)ops.push({t:'text',s:'※印は軽減税率対象商品',a:'l',z:.8});
+  if(sh.footer){ops.push({t:'gap',h:.8});ops.push({t:'text',s:sh.footer,a:'c',z:.85});}
+  return ops;
+}
+
+/* 命令の並びを、プリンターの印字幅（8ドット/mm）に合わせてキャンバスに描く */
+const RFONT='"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Noto Sans CJK JP","Yu Gothic",Meiryo,sans-serif';
+function drawReceipt(ops,logo){
+  const paper=+S.shop.paper===80?80:58, dots=paper===80?576:384, SC=2;
+  const W=dots*SC, PAD=8*SC, FS=24*SC, LH=1.38;
+  const c=document.createElement('canvas'), g=c.getContext('2d');
+  const font=(z=1,b=0)=>`${b?'700':'400'} ${Math.round(FS*z)}px ${RFONT}`;
+  const wrap=(s,z,b,maxW)=>{g.font=font(z,b);const out=[];let cur='';for(const ch of String(s)){if(g.measureText(cur+ch).width>maxW&&cur){out.push(cur);cur=ch;}else cur+=ch;}out.push(cur);return out;};
+  const inner=W-PAD*2;
+  // 1回目：高さを計算しつつ描画手順を作る
+  const steps=[]; let y=PAD;
+  for(const o of ops){
+    const z=o.z||1, lh=FS*z*LH;
+    if(o.t==='gap'){y+=FS*(o.h||1);continue;}
+    if(o.t==='rule'){steps.push({k:'rule',y:y+FS*.35});y+=FS*.8;continue;}
+    if(o.t==='logo'&&logo){const w=Math.min(inner*.8,logo.width*SC),h=logo.height*w/logo.width;steps.push({k:'img',x:(W-w)/2,y,w,h});y+=h+FS*.4;continue;}
+    if(o.t==='title'){steps.push({k:'title',s:o.s,y});y+=FS*2.6;continue;}
+    if(o.t==='amount'){steps.push({k:'amount',s:o.s,y});y+=FS*3.2;continue;}
+    if(o.t==='stamp'){steps.push({k:'stamp',y});y+=FS*4.6;continue;}
+    if(o.t==='text'){for(const ln of wrap(o.s,z,o.b,inner)){steps.push({k:'text',s:ln,a:o.a,z,b:o.b,y});y+=lh;}continue;}
+    if(o.t==='lr'){
+      g.font=font(z,o.b);const rw=g.measureText(o.r).width;
+      const ls=wrap(o.l,z,o.b,inner-rw-FS*.6);
+      if(ls.length===1){steps.push({k:'lr',l:ls[0],r:o.r,z,b:o.b,y});y+=lh;}
+      else{ls.forEach((ln,i)=>{steps.push(i===ls.length-1?{k:'lr',l:ln,r:o.r,z,b:o.b,y}:{k:'text',s:ln,a:'l',z,b:o.b,y});y+=lh;});}
+      continue;
+    }
+  }
+  c.width=W; c.height=Math.ceil(y+PAD*2);
+  g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.fillStyle='#000';g.strokeStyle='#000';g.textBaseline='top';
+  for(const s of steps){
+    if(s.k==='rule'){g.setLineDash([FS*.25,FS*.2]);g.lineWidth=SC*1.5;g.beginPath();g.moveTo(PAD,s.y);g.lineTo(W-PAD,s.y);g.stroke();g.setLineDash([]);}
+    else if(s.k==='img')g.drawImage(logo,s.x,s.y,s.w,s.h);
+    else if(s.k==='title'){g.font=font(1.7,1);g.textAlign='center';g.fillText(s.s,W/2,s.y+FS*.35);g.lineWidth=SC*2;g.strokeRect(PAD+inner*.2,s.y,inner*.6,FS*2.3);}
+    else if(s.k==='amount'){g.font=font(2,1);g.textAlign='center';g.fillText(s.s,W/2,s.y+FS*.2);g.lineWidth=SC*2;g.beginPath();g.moveTo(PAD,s.y+FS*2.7);g.lineTo(W-PAD,s.y+FS*2.7);g.stroke();}
+    else if(s.k==='stamp'){const bw=FS*3.6;g.lineWidth=SC*1.5;g.setLineDash([FS*.2,FS*.15]);g.strokeRect(W-PAD-bw,s.y+FS*.3,bw,bw);g.setLineDash([]);g.font=font(.75);g.textAlign='center';g.fillText('収入印紙',W-PAD-bw/2,s.y+FS*.3+bw/2-FS*.4);}
+    else if(s.k==='text'){g.font=font(s.z,s.b);g.textAlign=s.a==='c'?'center':s.a==='r'?'right':'left';g.fillText(s.s,s.a==='c'?W/2:s.a==='r'?W-PAD:PAD,s.y);}
+    else if(s.k==='lr'){g.font=font(s.z,s.b);g.textAlign='left';g.fillText(s.l,PAD,s.y);g.textAlign='right';g.fillText(s.r,W-PAD,s.y);}
+  }
+  return {canvas:c,paper,dots};
+}
+
+/* JPEG画像1枚だけのPDFを作る（ライブラリ不要・オフラインで動く）。
+   ページ幅＝印字幅（58mm紙→48mm、80mm紙→72mm）で等倍印字になる */
+function imagePdf(canvas,printMm){
+  const jpg=atob(canvas.toDataURL('image/jpeg',0.92).split(',')[1]);
+  const wPt=printMm*72/25.4, hPt=wPt*canvas.height/canvas.width, f=n=>n.toFixed(2);
+  const parts=[], offs=[]; let len=0;
+  const add=s=>{parts.push(s);len+=s.length;};
+  const obj=(n,body)=>{offs[n]=len;add(`${n} 0 obj\n${body}\nendobj\n`);};
+  add('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
+  obj(1,'<</Type/Catalog/Pages 2 0 R>>');
+  obj(2,'<</Type/Pages/Kids[3 0 R]/Count 1>>');
+  obj(3,`<</Type/Page/Parent 2 0 R/MediaBox[0 0 ${f(wPt)} ${f(hPt)}]/Resources<</XObject<</Im0 4 0 R>>>>/Contents 5 0 R>>`);
+  offs[4]=len; add(`4 0 obj\n<</Type/XObject/Subtype/Image/Width ${canvas.width}/Height ${canvas.height}/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length ${jpg.length}>>\nstream\n`); add(jpg); add('\nendstream\nendobj\n');
+  const cs=`q ${f(wPt)} 0 0 ${f(hPt)} 0 0 cm /Im0 Do Q`;
+  obj(5,`<</Length ${cs.length}>>\nstream\n${cs}\nendstream`);
+  const xref=len;
+  add(`xref\n0 6\n0000000000 65535 f \n${[1,2,3,4,5].map(n=>String(offs[n]).padStart(10,'0')+' 00000 n \n').join('')}trailer\n<</Size 6/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF\n`);
+  const s=parts.join(''), u=new Uint8Array(s.length);
+  for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i)&255;
+  return new Blob([u],{type:'application/pdf'});
+}
+
+let lastRcpt=null;
+async function openReceipt(x,kind){
+  const logo=await getLogo();
+  const r=drawReceipt(receiptOps(x,kind),logo);
+  const label=kind==='ryo'?'領収書':'レシート';
+  lastRcpt={...r,name:`${label}_${saleNo(x)}.pdf`,label};
+  showModal(`<h3>${label}</h3><div class="mb">
+    <div class="rprev"><img src="${r.canvas.toDataURL('image/png')}" alt="${label}のプレビュー" style="max-width:${r.paper===80?300:230}px"></div>
+    ${!S.shop.name&&!S.shop.regno?'<p class="note warn">店名・登録番号が未入力です。設定タブの「レシート・領収書」で入力してください。</p>':''}
+    <p class="note">「共有・印刷」を押すと共有画面が開きます。印刷アプリ（SII URL Print Agentなど）や「プリント」を選んでください。</p></div>
+    <div class="mbtns"><button data-a="mclose">閉じる</button><button class="primary" data-a="rshare">共有・印刷</button></div>`);
+}
+async function shareReceipt(){
+  if(!lastRcpt)return;
+  const pdf=imagePdf(lastRcpt.canvas,lastRcpt.paper===80?72:48);
+  try{
+    const f=new File([pdf],lastRcpt.name,{type:'application/pdf'});
+    if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f]});return;}
+  }catch(e){if(e&&e.name==='AbortError')return;}
+  saveFile(lastRcpt.name,pdf,'application/pdf',lastRcpt.label);
+}
+function openDone(x){
+  showModal(`<h3>会計完了　${esc(x.table)}</h3><div class="mb">
+    <div class="chg"><span>おつり</span><b>${yen(x.change)}</b></div>
+    <div class="taxline">合計 ${yen(x.total)}／お預かり ${yen(x.paid)}</div></div>
+    <div class="mbtns"><button data-a="rcpt" data-id="${x.id}">レシート</button><button data-a="ryo" data-id="${x.id}">領収書</button><button class="primary" data-a="mclose">閉じる</button></div>`);
+}
+function sampleSale(){
+  const it=S.items.slice(0,3);
+  const lines=it.map((i,k)=>({name:i.name,price:k===2?0:i.price,base:i.price,qty:k===0?2:1}));
+  const base=lines.reduce((a,l)=>a+l.price*l.qty,0), b=calcBill(base,'main');
+  return {id:'sample',no:dayKey(Date.now())+'-0001',table:S.tables[0]?S.tables[0].name:'C1',guests:2,start:Date.now()-3600e3,end:Date.now(),
+    taxKind:b.kind,taxName:b.name,taxRate:b.rate,priceMode:b.mode,base:b.base,tax:b.tax,lines,total:b.total,paid:Math.ceil(b.total/1000)*1000,change:Math.ceil(b.total/1000)*1000-b.total};
+}
+
 function openTableName(id){
   editId=id||null;
   const t=id?S.tables.find(x=>x.id===id):null;
@@ -695,11 +919,17 @@ document.addEventListener('click',e=>{
     case 'pq': {const v=b.dataset.v,inp=$('paid');
       inp.value=v==='exact'?billT(t,payKind).total:v==='0'?'':paidVal()+(+v); updChg(); return;}
     case 'payok': {const b=billT(t,payKind),tot=b.total,p=paidVal(); if(p<tot)return;
-      S.sales.push({id:uid(),table:t.name,guests:t.guests,start:t.start,end:Date.now(),
+      const now=Date.now();
+      const sale={id:uid(),no:nextSaleNo(now),table:t.name,guests:t.guests,start:t.start,end:now,
         taxKind:b.kind,taxName:b.name,taxRate:b.rate,priceMode:b.mode,base:b.base,tax:b.tax,
-        lines:t.lines.map(l=>({name:l.name,price:l.price,base:l.base,qty:l.qty})),total:tot,paid:p,change:p-tot});
-      const name=t.name; resetTable(t); save(); closeModal(); view={name:'tables'};
-      toast(`${name} 会計完了　おつり ${yen(p-tot)}`); break;}
+        lines:t.lines.map(l=>({name:l.name,price:l.price,base:l.base,qty:l.qty})),total:tot,paid:p,change:p-tot};
+      S.sales.push(sale);
+      resetTable(t); save(); closeModal(); view={name:'tables'}; render(); openDone(sale); return;}
+    case 'rcpt': case 'ryo': {const x=S.sales.find(s=>s.id===id); if(x)openReceipt(x,a==='ryo'?'ryo':'rcpt'); return;}
+    case 'rshare': shareReceipt(); return;
+    case 'rsample': openReceipt(sampleSale(),b.dataset.v); return;
+    case 'logopick': {const f=$('logofile'); if(f){f.value='';f.click();} return;}
+    case 'logodel': S.shop.logo=''; logoImg=null; save(); break;
     case 'mclose': closeModal(); return;
     case 'cok': {const fn=confirmFn;confirmFn=null;closeModal();if(fn)fn();save();break;}
     case 'inew': openItem(null,b.dataset.c); return;
@@ -741,7 +971,7 @@ document.addEventListener('click',e=>{
     case 'tdel': {const tb=S.tables.find(x=>x.id===id);
       confirmBox(`テーブル「${esc(tb.name)}」を削除しますか？`,()=>{S.tables=S.tables.filter(x=>x.id!==id);},'削除する',true); return;}
     case 'rsales': confirmBox('売上履歴をすべて消去します。<br>先に「売上」タブからCSVを保存しておくと安心です。<br>使用中のテーブルはそのまま残ります。',()=>{S.sales=[];},'リセット',true); return;
-    case 'rall': confirmBox('アイテム・テーブル・売上をすべて初期状態に戻します。',()=>{S=defaults();view={name:'tables'};},'初期化する',true); return;
+    case 'rall': confirmBox('アイテム・テーブル・売上をすべて初期状態に戻します。',()=>{S=normalize(defaults());curCat=0;clip=null;logoImg=null;view={name:'tables'};},'初期化する',true); return;
   }
   render();
 });
@@ -750,6 +980,14 @@ document.addEventListener('change',e=>{
   const el=e.target;
   if(el.hasAttribute('data-pk')){payKind=el.value;updPay();return;}
   if(el.id==='bfile'){if(el.files&&el.files[0])importBackup(el.files[0]);return;}
+  if(el.id==='logofile'){if(el.files&&el.files[0])loadLogo(el.files[0]);return;}
+  const sk=el.dataset.shop;
+  if(sk){
+    let v=el.value.trim();
+    if(sk==='paper')v=+v;
+    if(sk==='regno'){v=v.toUpperCase().replace(/[^T\d]/g,'');if(v&&!/^T\d{13}$/.test(v))toast('登録番号は「T＋13桁の数字」です（このまま保存しました）');}
+    S.shop[sk]=v; save(); if(sk==='paper')render(); else toast('保存しました'); return;
+  }
   if(el.id==='txtcat'){updTextPrev();return;}
   const k=el.dataset.tax; if(!k)return;
   if(k==='main'||k==='sub'){
