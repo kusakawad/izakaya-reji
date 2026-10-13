@@ -85,6 +85,15 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .seg.big span{padding:12px 4px;font-size:16px}
 .seg label+label span{border-left:1.5px solid var(--accent)}
 .taxline{text-align:center;color:var(--muted);font-size:12px;margin:-8px 0 12px}
+.mini{white-space:nowrap}
+.cathd{display:flex;align-items:flex-end;justify-content:space-between;gap:8px}
+.cathd .mini{margin-bottom:4px}
+.clipbar{display:flex;align-items:center;gap:8px;background:var(--busy-bg);border:1.5px solid var(--busy);border-radius:10px;padding:10px 12px;margin:8px 0;font-size:14px}
+.clipbar small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.addrow.paste{border-style:solid;border-color:var(--busy);color:var(--busy);background:var(--busy-bg)}
+.txt{width:100%;font:inherit;font-size:15px;line-height:1.5;padding:10px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);resize:vertical;margin-bottom:10px}
+.prev{font-size:14px;line-height:1.6}
+.prev .bad{color:var(--danger);font-size:12px;margin-top:4px;word-break:break-all}
 .csvbtns{display:flex;gap:8px;margin:12px 0 4px}
 .csvbtns button{flex:1;border:1.5px solid var(--accent);background:var(--panel);color:var(--accent-d);border-radius:10px;padding:11px 6px;font-size:14px;font-weight:700}
 .csvbtns button:disabled{opacity:.4}
@@ -176,9 +185,10 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 const $=id=>document.getElementById(id);
 
 function defaults(){
-  const it=(name,price,cat)=>({id:uid(),name,price,cat});
+  const cats=['ドリンク','フード','その他'].map(name=>({id:uid(),name}));
+  const it=(name,price,ci)=>({id:uid(),name,price,cat:cats[ci].id});
   return {
-    cats:['ドリンク','フード','その他'],
+    cats,
     items:[
       it('生ビール',600,0),it('ハイボール',500,0),it('レモンサワー',480,0),it('日本酒 一合',700,0),
       it('焼酎',500,0),it('ウーロン茶',300,0),it('コーラ',300,0),
@@ -197,8 +207,23 @@ function defTax(){return {main:10,mainName:'店内',sub:8,subName:'持ち帰り'
 let S=null;
 try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){S=null}
 if(!S||!Array.isArray(S.items)||!Array.isArray(S.tables)) S=defaults();
-S.tables.forEach(t=>{let fix=false;t.lines.forEach(l=>{if(!l.key){l.key=l.iid+'@'+l.price;fix=true;}if(l.base==null)l.base=l.price;});if(fix)t.stack=[];});
-S.tax=Object.assign(defTax(),S.tax||{});
+/* 古い形式のデータを今の形に補完する（読み込み時・バックアップ復元時の両方で使う） */
+function normalize(D){
+  if(!Array.isArray(D.cats)||!D.cats.length) D.cats=['ドリンク','フード','その他'];
+  // v1: cats は名前の配列、item.cat は番号 → v2: cats は {id,name}、item.cat はカテゴリid
+  const old=D.cats.map(c=>typeof c==='string'?null:c);
+  D.cats=D.cats.map(c=>typeof c==='string'?{id:uid(),name:c}:{id:c.id||uid(),name:String(c.name||'カテゴリ')});
+  D.items.forEach(i=>{
+    if(typeof i.cat==='number'||/^\d+$/.test(String(i.cat))){const c=D.cats[+i.cat];if(c&&!old[+i.cat])i.cat=c.id;}
+    if(!D.cats.some(c=>c.id===i.cat))i.cat=D.cats[0].id;
+  });
+  D.tables.forEach(t=>{t.lines=t.lines||[];t.stack=t.stack||[];let fix=false;
+    t.lines.forEach(l=>{if(!l.key){l.key=l.iid+'@'+l.price;fix=true;}if(l.base==null)l.base=l.price;});if(fix)t.stack=[];});
+  D.sales=D.sales||[];
+  D.tax=Object.assign(defTax(),D.tax||{});
+  return D;
+}
+normalize(S);
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 
 let view={name:'tables'};
@@ -248,7 +273,8 @@ function tablesView(){
   </button>`).join('')}</div>`;
 }
 function orderView(t){
-  const items=S.items.filter(i=>i.cat===curCat);
+  if(!(curCat<S.cats.length))curCat=0;
+  const cid=S.cats[curCat].id, items=S.items.filter(i=>i.cat===cid);
   return `<header class="hd"><button class="hbtn" data-a="back" aria-label="テーブル一覧に戻る">‹</button>
     <div class="title">${esc(t.name)}<small>${t.guests?t.guests+'名':'人数未設定'} ${fmtMin(mins(t))}</small></div>
     <button class="hbtn sm" data-a="guests">人数</button></header>
@@ -258,7 +284,7 @@ function orderView(t){
       <div class="lsub">${yen(l.price*l.qty)}</div></div>`).join('')
     :`<div class="empty">下のメニューをタップすると注文が追加されます<br>追加した品名をタップすると価格を変更できます</div>`}</div>
   ${(()=>{const b=billT(t);return `<div class="sumbar"><span>${count(t)} 点</span><span class="sumr"><small>${esc(b.name)} ${pct(b.rate)} 税込${b.total!==b.base?`（${S.tax.mode==='excl'?'税抜':'価格計'} ${yen(b.base)}）`:''}</small>${yen(b.total)}</span></div>`})()}
-  <div class="cats">${S.cats.map((c,i)=>`<button data-a="cat" data-i="${i}" class="${i===curCat?'on':''}">${esc(c)}</button>`).join('')}</div>
+  <div class="cats">${S.cats.map((c,i)=>`<button data-a="cat" data-i="${i}" class="${i===curCat?'on':''}">${esc(c.name)}</button>`).join('')}</div>
   <div class="igrid" data-keep="igrid">${items.map(i=>`<button class="item" data-a="add" data-id="${i.id}"><span class="iname">${esc(i.name)}</span><span class="iprice">${i.ask?'<span class="ask">価格入力</span>':yen(i.price)}</span></button>`).join('')
     ||'<div class="empty">このカテゴリにはアイテムがありません。設定から追加できます</div>'}</div>
   <div class="foot"><button data-a="clear" ${t.lines.length?'':'disabled'}>全消去</button>
@@ -310,10 +336,21 @@ function settingsView(){
     <h3>1円未満の端数</h3>
     <div class="seg">${[['floor','切り捨て'],['round','四捨五入'],['ceil','切り上げ']].map(([v,l])=>`<label><input type="radio" name="round" value="${v}" data-tax="round" ${tx.round===v?'checked':''}><span>${l}</span></label>`).join('')}</div>
     <p class="note">例：メニュー価格 ¥1,100 → ${esc(tx.mainName)} ${yen(calcBill(1100,'main').total)}／${esc(tx.subName)} ${yen(calcBill(1100,'sub').total)}</p>
+    <h2 style="margin-top:22px">カテゴリ</h2>
+    <p class="note">並び順が注文画面のタブの順番になります。</p>
+    ${S.cats.map((c,ci)=>`<div class="row"><span class="grow">${esc(c.name)} <span class="muted">${S.items.filter(i=>i.cat===c.id).length}品</span></span>
+      <button class="mini" data-a="cup" data-i="${ci}" ${ci===0?'disabled':''} aria-label="${esc(c.name)}を上へ">↑</button>
+      <button class="mini" data-a="cdown" data-i="${ci}" ${ci===S.cats.length-1?'disabled':''} aria-label="${esc(c.name)}を下へ">↓</button>
+      <button class="mini" data-a="cren" data-id="${c.id}">名前変更</button>
+      <button class="mini" data-a="cdel" data-id="${c.id}" ${S.cats.length<2?'disabled':''}>削除</button></div>`).join('')}
+    <button class="addrow" data-a="cnew">＋ カテゴリを追加</button>
     <h2 style="margin-top:22px">アイテム</h2>
-    ${S.cats.map((c,ci)=>`<h3>${esc(c)}</h3>
-      ${S.items.filter(i=>i.cat===ci).map(i=>`<button class="row" data-a="iedit" data-id="${i.id}"><span class="grow">${esc(i.name)}</span><span class="muted">${i.ask?'価格入力（初期値 '+yen(i.price)+'）':yen(i.price)}</span></button>`).join('')}
-      <button class="addrow" data-a="inew" data-c="${ci}">＋ ${esc(c)}に追加</button>`).join('')}
+    <div class="csvbtns"><button data-a="txtout" data-c="">全メニューをコピー</button><button data-a="txtin">文字から一括登録</button></div>
+    ${clip?`<div class="clipbar"><span class="grow">コピー中：<b>${esc(clip.name)}</b>（${clip.ask?'価格入力':yen(clip.price)}）<small>貼り付けたいカテゴリの「ここに貼り付け」を押してください</small></span><button class="mini" data-a="clipclear">やめる</button></div>`:''}
+    ${S.cats.map(c=>`<div class="cathd"><h3>${esc(c.name)}</h3><button class="mini" data-a="txtout" data-c="${c.id}">文字でコピー</button></div>
+      ${S.items.filter(i=>i.cat===c.id).map(i=>`<button class="row" data-a="iedit" data-id="${i.id}"><span class="grow">${esc(i.name)}</span><span class="muted">${i.ask?'価格入力（初期値 '+yen(i.price)+'）':yen(i.price)}</span></button>`).join('')}
+      <button class="addrow" data-a="inew" data-c="${c.id}">＋ ${esc(c.name)}に追加</button>
+      ${clip?`<button class="addrow paste" data-a="paste" data-c="${c.id}">📋 ここに貼り付け（${esc(clip.name)}）</button>`:''}`).join('')}
     <h2 style="margin-top:22px">テーブル</h2>
     ${S.tables.map(t=>`<div class="row"><span class="grow">${esc(t.name)}${t.open?' <span class="muted">（使用中）</span>':''}</span>
       <button class="mini" data-a="tren" data-id="${t.id}">名前変更</button>
@@ -393,14 +430,108 @@ function updChg(){
 }
 function openItem(id,cat){
   editId=id||null;
-  const it=id?S.items.find(i=>i.id===id):{name:'',price:'',cat:+cat};
+  const it=id?S.items.find(i=>i.id===id):{name:'',price:'',cat:cat||S.cats[0].id};
   showModal(`<h3>${id?'アイテム編集':'アイテム追加'}</h3><div class="mb">
     <label class="fl">品名<input id="iname" value="${esc(it.name)}" maxlength="20"></label>
     <label class="fl">価格（値引きはマイナス）<input id="iprice" inputmode="numeric" value="${it.price}"></label>
-    <label class="fl">カテゴリ<select id="icat">${S.cats.map((c,i)=>`<option value="${i}" ${i===it.cat?'selected':''}>${esc(c)}</option>`).join('')}</select></label>
-    <label class="ck"><input type="checkbox" id="iask" ${it.ask?'checked':''}><span>注文のたびに価格を入力<small>時価の品など。上の価格は入力欄の初期値になります</small></span></label></div>
+    <label class="fl">カテゴリ<select id="icat">${S.cats.map(c=>`<option value="${c.id}" ${c.id===it.cat?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>
+    <label class="ck"><input type="checkbox" id="iask" ${it.ask?'checked':''}><span>注文のたびに価格を入力<small>時価の品など。上の価格は入力欄の初期値になります</small></span></label>
+    ${id?'<button class="wide" data-a="icopy">このアイテムをコピー</button>':''}</div>
     <div class="mbtns">${id?'<button class="danger" data-a="idel">削除</button>':''}<button data-a="mclose">キャンセル</button><button class="primary" data-a="isave">保存</button></div>`);
 }
+/* ---------- カテゴリ編集 ---------- */
+function openCatName(id){
+  editId=id||null;
+  const c=id?S.cats.find(x=>x.id===id):null;
+  showModal(`<h3>${c?'カテゴリ名を変更':'カテゴリを追加'}</h3><div class="mb">
+    <label class="fl">カテゴリ名<input id="cname" value="${c?esc(c.name):''}" maxlength="12" placeholder="例：日本酒"></label></div>
+    <div class="mbtns"><button data-a="mclose">キャンセル</button><button class="primary" data-a="csave">保存</button></div>`);
+}
+function openCatDel(id){
+  editId=id; const c=S.cats.find(x=>x.id===id), n=S.items.filter(i=>i.cat===id).length;
+  if(!n){confirmBox(`カテゴリ「${esc(c.name)}」を削除しますか？`,()=>{S.cats=S.cats.filter(x=>x.id!==id);},'削除する',true);return;}
+  showModal(`<h3>「${esc(c.name)}」を削除</h3><div class="mb">
+    <p class="msg">中にある${n}品のアイテムを、どのカテゴリへ移しますか？</p>
+    <label class="fl">移動先<select id="cmove">${S.cats.filter(x=>x.id!==id).map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select></label></div>
+    <div class="mbtns"><button data-a="mclose">キャンセル</button><button class="danger" data-a="cdelok">移して削除</button></div>`);
+}
+
+/* ---------- アイテムのコピー＆貼り付け ---------- */
+let clip=null; // コピー中のアイテム（画面を閉じるまで保持）
+function pasteItem(cid){
+  if(!clip)return;
+  const it={id:uid(),name:clip.name,price:clip.price,cat:cid,ask:!!clip.ask};
+  S.items.push(it); save(); render(); openItem(it.id);
+  toast('貼り付けました。品名を変えるならここで');
+}
+
+/* ---------- 文字でまとめてコピー／一括登録 ----------
+   形式：【カテゴリ名】の行で区切り、品目は「品名,価格」（3つ目に「時価」で注文ごとに価格入力） */
+function menuText(cid){
+  const cats=cid?S.cats.filter(c=>c.id===cid):S.cats;
+  return cats.map(c=>`【${c.name}】\n`+S.items.filter(i=>i.cat===c.id).map(i=>`${i.name},${i.price}${i.ask?',時価':''}`).join('\n')).join('\n\n').trim()+'\n';
+}
+async function copyText(text){
+  try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(text);return true;}}catch(e){}
+  try{const ta=$('txtbox');if(ta){ta.focus();ta.select();if(document.execCommand('copy'))return true;}}catch(e){}
+  return false;
+}
+function openTextOut(cid){
+  const c=cid?S.cats.find(x=>x.id===cid):null, text=menuText(cid);
+  showModal(`<h3>${c?esc(c.name)+'を文字でコピー':'全メニューを文字でコピー'}</h3><div class="mb">
+    <textarea id="txtbox" class="txt" readonly rows="10">${esc(text)}</textarea>
+    <p class="note">メモやLINE、Excelに貼り付けられます。この形のまま「文字から一括登録」に貼れば登録し直せます。</p></div>
+    <div class="mbtns"><button data-a="mclose">閉じる</button><button class="primary" data-a="txtcopy">コピー</button></div>`);
+}
+const z2h=s=>s.replace(/[０-９]/g,d=>String.fromCharCode(d.charCodeAt(0)-0xFEE0)).replace(/[－−]/g,'-');
+function parseMenu(text,defCid){
+  const out={rows:[],bad:[],newCats:[]};
+  let cur=null; // 見出しで指定されたカテゴリ名（なければ追加先の既定カテゴリ）
+  text.split(/\r?\n/).forEach(raw=>{
+    const line=z2h(raw).trim(); if(!line)return;
+    const h=line.match(/^[【\[［#＃■]\s*([^】\]］]+?)\s*[】\]］]?$/);
+    if(h&&!/[\t,，、]\s*[¥￥]?\s*-?\d/.test(line)){cur=h[1].trim();if(cur&&!S.cats.some(c=>c.name===cur)&&!out.newCats.includes(cur))out.newCats.push(cur);return;}
+    const m=line.match(/^(.+?)[\t,，、\s]+[¥￥]?\s*(-?[\d,，]+)\s*円?(?:[\t,，、\s]+(時価|価格入力))?$/);
+    if(!m){out.bad.push(raw.trim());return;}
+    const name=m[1].trim().slice(0,20), price=parseInt(m[2].replace(/[,，]/g,''));
+    if(!name||isNaN(price)){out.bad.push(raw.trim());return;}
+    out.rows.push({name,price,ask:!!m[3],catName:cur});
+  });
+  // 追加か更新か（同じカテゴリに同じ品名があれば価格を更新）
+  out.rows.forEach(r=>{
+    const c=r.catName?S.cats.find(x=>x.name===r.catName):S.cats.find(x=>x.id===defCid);
+    r.exists=!!(c&&S.items.some(i=>i.cat===c.id&&i.name===r.name));
+  });
+  return out;
+}
+function openTextIn(){
+  showModal(`<h3>文字から一括登録</h3><div class="mb">
+    <textarea id="txtin" class="txt" rows="9" placeholder="【ドリンク】&#10;生ビール,600&#10;ハイボール,500&#10;&#10;【フード】&#10;刺身盛り合わせ,1280,時価"></textarea>
+    <label class="fl">【見出し】がない品の登録先<select id="txtcat">${S.cats.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select></label>
+    <p class="note">1行に1品、「品名,価格」の形で書きます（区切りはカンマ・タブ・スペースのどれでも可）。3つ目に「時価」と書くと注文のたびに価格を入力する品になります。【カテゴリ名】の行より下は、そのカテゴリに入ります（なければ新しく作ります）。同じカテゴリに同じ品名があるときは価格を更新します。</p>
+    <div id="txtprev" class="prev"></div></div>
+    <div class="mbtns"><button data-a="mclose">キャンセル</button><button class="primary" id="txtok" data-a="txtok" disabled>登録</button></div>`);
+}
+function updTextPrev(){
+  const p=parseMenu($('txtin').value,$('txtcat').value);
+  const add=p.rows.filter(r=>!r.exists).length, upd=p.rows.length-add;
+  $('txtprev').innerHTML=p.rows.length||p.bad.length?
+    `<b>追加 ${add}品${upd?`／価格を更新 ${upd}品`:''}${p.newCats.length?`／新しいカテゴリ ${p.newCats.map(esc).join('、')}`:''}</b>`+
+    (p.bad.length?`<div class="bad">読み取れなかった行（${p.bad.length}）：${p.bad.slice(0,5).map(esc).join('／')}${p.bad.length>5?' …':''}</div>`:''):'';
+  $('txtok').disabled=!p.rows.length;
+}
+function applyText(){
+  const defCid=$('txtcat').value, p=parseMenu($('txtin').value,defCid);
+  let add=0,upd=0;
+  p.newCats.forEach(n=>S.cats.push({id:uid(),name:n.slice(0,12)}));
+  p.rows.forEach(r=>{
+    const c=r.catName?S.cats.find(x=>x.name===r.catName||x.name===r.catName.slice(0,12)):S.cats.find(x=>x.id===defCid);
+    const ex=S.items.find(i=>i.cat===c.id&&i.name===r.name);
+    if(ex){ex.price=r.price;ex.ask=r.ask;upd++;}else{S.items.push({id:uid(),name:r.name,price:r.price,cat:c.id,ask:r.ask});add++;}
+  });
+  save(); closeModal(); render(); toast(`${add}品を追加${upd?`、${upd}品を更新`:''}しました`);
+}
+
 function openTableName(id){
   editId=id||null;
   const t=id?S.tables.find(x=>x.id===id):null;
@@ -512,8 +643,7 @@ function importBackup(file){
     let d=null; try{d=validBackup(JSON.parse(r.result));}catch(e){d=null;}
     if(!d){toast('居酒屋レジのバックアップファイルではありません');return;}
     confirmBox(`バックアップから復元します。<br>今のデータ（売上${S.sales.length}件・使用中テーブル${S.tables.filter(t=>t.open).length}卓）はバックアップの内容（売上${d.sales.length}件）に置き換わります。`,()=>{
-      S=d; S.tax=Object.assign(defTax(),S.tax||{});
-      S.tables.forEach(t=>{t.lines=t.lines||[];t.stack=t.stack||[];t.lines.forEach(l=>{if(!l.key)l.key=l.iid+'@'+l.price;if(l.base==null)l.base=l.price;});});
+      S=normalize(d); curCat=0; clip=null;
       view={name:'tables'}; toast('復元しました');
     },'復元する',true);
   };
@@ -573,11 +703,30 @@ document.addEventListener('click',e=>{
     case 'mclose': closeModal(); return;
     case 'cok': {const fn=confirmFn;confirmFn=null;closeModal();if(fn)fn();save();break;}
     case 'inew': openItem(null,b.dataset.c); return;
+    case 'icopy': {const it=S.items.find(i=>i.id===editId); if(!it)return;
+      clip={name:it.name,price:it.price,ask:!!it.ask}; closeModal(); toast('コピーしました。貼り付け先のカテゴリを選んでください'); break;}
+    case 'paste': pasteItem(b.dataset.c); return;
+    case 'clipclear': clip=null; break;
+    case 'cnew': openCatName(null); return;
+    case 'cren': openCatName(id); return;
+    case 'csave': {const name=$('cname').value.trim(); if(!name){toast('カテゴリ名を入力してください');return;}
+      if(S.cats.some(c=>c.name===name&&c.id!==editId)){toast('同じ名前のカテゴリがあります');return;}
+      if(editId)S.cats.find(c=>c.id===editId).name=name; else S.cats.push({id:uid(),name});
+      save(); closeModal(); break;}
+    case 'cup': case 'cdown': {const i=+b.dataset.i, j=a==='cup'?i-1:i+1; if(j<0||j>=S.cats.length)return;
+      [S.cats[i],S.cats[j]]=[S.cats[j],S.cats[i]]; curCat=0; save(); break;}
+    case 'cdel': openCatDel(id); return;
+    case 'cdelok': {const to=$('cmove').value; S.items.forEach(i=>{if(i.cat===editId)i.cat=to;});
+      S.cats=S.cats.filter(c=>c.id!==editId); curCat=0; save(); closeModal(); toast('削除しました'); break;}
+    case 'txtout': openTextOut(b.dataset.c); return;
+    case 'txtcopy': copyText($('txtbox').value).then(ok=>toast(ok?'コピーしました':'コピーできませんでした。文字を長押しして選んでください')); return;
+    case 'txtin': openTextIn(); return;
+    case 'txtok': applyText(); return;
     case 'iedit': openItem(id); return;
     case 'isave': {const name=$('iname').value.trim();const raw=$('iprice').value.replace(/[^\d-]/g,'');const price=parseInt(raw);
       if(!name){toast('品名を入力してください');return;}
       if(isNaN(price)){toast('価格を数字で入力してください');return;}
-      const cat=+$('icat').value, ask=$('iask').checked;
+      const cat=$('icat').value, ask=$('iask').checked;
       if(editId){Object.assign(S.items.find(i=>i.id===editId),{name,price,cat,ask});}
       else S.items.push({id:uid(),name,price,cat,ask});
       save(); closeModal(); toast('保存しました'); break;}
@@ -596,11 +745,12 @@ document.addEventListener('click',e=>{
   }
   render();
 });
-document.addEventListener('input',e=>{if(e.target.id==='paid')updChg();});
+document.addEventListener('input',e=>{if(e.target.id==='paid')updChg();if(e.target.id==='txtin')updTextPrev();});
 document.addEventListener('change',e=>{
   const el=e.target;
   if(el.hasAttribute('data-pk')){payKind=el.value;updPay();return;}
   if(el.id==='bfile'){if(el.files&&el.files[0])importBackup(el.files[0]);return;}
+  if(el.id==='txtcat'){updTextPrev();return;}
   const k=el.dataset.tax; if(!k)return;
   if(k==='main'||k==='sub'){
     const v=parseFloat(el.value.replace(/[^\d.]/g,''));
