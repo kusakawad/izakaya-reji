@@ -26,4 +26,7 @@ main に push した内容は数分で店のアプリに反映されるので、
 - アプリ本体は `index.html` 1 ファイル（HTML/CSS/JS すべて入り）。ビルド不要。
 - データは端末のブラウザ（localStorage キー `izakaya-reji-v1`）にのみ保存。サーバーなし。
 - `sw.js`：オフライン用 Service Worker。`manifest.webmanifest` とアイコン：ホーム画面アプリ用。
+- データ形式 v2：`cats` は `{id,name}` の配列、`item.cat` はカテゴリ id。旧形式（名前の配列＋番号）は `normalize()` が読み込み時に変換する。
+- 店舗情報は `S.shop`（レシート・領収書に印字）。レシートは canvas に描いて `imagePdf()` で PDF 化し、共有画面（navigator.share）へ渡す。
+- 既知の制約：持ち帰り（サブ税率）は会計全体に適用している。酒類は軽減税率の対象外だが未対応（オーナー了承済み・保留）。
 - 端末は 1 台運用が前提。割り勘・個別会計・テーブル移動・合流は不要と言われている。
