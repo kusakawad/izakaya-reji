@@ -1,5 +1,5 @@
 // 居酒屋レジ オフライン用。アプリを更新したら VERSION を上げる
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = 'izakaya-reji-' + VERSION;
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
